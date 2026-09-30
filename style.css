@@ -77,6 +77,10 @@ p { margin: 0 0 1rem; }
   padding: .85rem 0; border-top: 1px solid var(--line);
 }
 .projects li:last-child { border-bottom: 1px solid var(--line); }
+.projects li span {
+  display: block; margin-top: .3rem;
+  font-family: var(--font-body); font-size: .92rem; line-height: 1.55; color: var(--muted);
+}
 
 /* Footer */
 .site-footer {
