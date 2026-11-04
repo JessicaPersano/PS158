@@ -43,6 +43,9 @@
   .legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .82rem; color: var(--muted); margin-top: .4rem; }
   .legend i { display: inline-block; width: .8rem; height: .8rem; border: 1px solid #cfc6bc; margin-right: .3rem; vertical-align: -1px; }
   code { background: #f1ebe2; padding: 0 .25rem; border-radius: 3px; font-size: .88em; }
+  table.runs { width: 100%; border-collapse: collapse; font-size: .88rem; margin-top: .4rem; }
+  table.runs th, table.runs td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.runs th { font-weight: 600; font-size: .8rem; }
   #curve svg { width: 100%; display: block; }
   #curve text { font: 11px "Inter", sans-serif; fill: var(--muted); }
 </style>
@@ -122,6 +125,18 @@
       <p class="small muted"><span style="color:#2a2522;font-weight:600">— points per game</span> (what the agent maximizes) · <span style="color:#2f6b45;font-weight:600">— % of games where both supporters vote</span> (the real goal) · <span style="color:#a42a2a;font-weight:600">— % of games where the opponent's supporter votes</span></p>
     </div>
   </div>
+
+  <div class="btns" style="align-items:center">
+    <button type="button" id="record">Record this run</button>
+    <span class="small muted">Saves the reward, the seed, how many games it trained, and what its learned game does.</span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="runs" id="runs">
+      <thead><tr><th>#</th><th>What we reward</th><th>Seed</th><th>Games</th><th>Learned game</th><th>Points</th><th>Last 50 training games: both supporters · opponent's voted</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <button type="button" class="secondary small" id="clear-runs" style="margin-top:.5rem">Clear table</button>
 
   <p class="small muted" style="margin-top:2rem">How the agent works: tabular Q-learning. Learning rate 0.2, discount 0.95, 20% random moves while training, Q-values start at 0, ties broken at random, seeded random numbers so the same settings always give the same result. The game has 25 squares × 8 combinations of who has voted = 200 states.</p>
 </main>
@@ -405,8 +420,35 @@ Agent.prototype.playGreedy = function () {
     $("curve").innerHTML = svg + "</svg>";
   }
 
+  /* ---------- Recorded runs (saved in this browser only) ---------- */
+  var RUNS_KEY = "gotv-runs", runs = [];
+  try { runs = JSON.parse(localStorage.getItem(RUNS_KEY)) || []; } catch (e) { runs = []; }
+  function saveRuns() { try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs)); } catch (e) {} }
+  function rewardText() {
+    if (REWARD.scheme === "doors") return "Doors knocked: +" + REWARD.door + " per door · move " + num(REWARD.move);
+    return "Votes: supporter " + (REWARD.supporter > 0 ? "+" : "") + num(REWARD.supporter) + " · opponent " + num(REWARD.opponent) + " · move " + num(REWARD.move);
+  }
+  function renderRuns() {
+    var esc = function (s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); };
+    document.querySelector("#runs tbody").innerHTML = runs.length ? runs.map(function (r, i) {
+      return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.reward) + "</td><td>" + r.seed + "</td><td>" + r.games.toLocaleString() + "</td><td>" + esc(r.result) + "</td><td>" + num(r.points) + "</td><td>" + r.goal + "% · " + r.theirs + "%</td></tr>";
+    }).join("") : '<tr><td colspan="7" class="muted">No runs recorded yet. Train the agent, then press Record this run.</td></tr>';
+  }
+  $("record").addEventListener("click", function () {
+    if (!agent.episodes) return;
+    var g = agent.playGreedy().game, last = history.slice(-50);
+    var pct = function (f) { return Math.round(100 * last.filter(f).length / last.length); };
+    runs.push({ reward: rewardText(), seed: seed, games: agent.episodes, result: describe(g), points: g.score,
+      goal: pct(function (e) { return e.goal; }), theirs: pct(function (e) { return e.theirs; }) });
+    saveRuns(); renderRuns();
+  });
+  $("clear-runs").addEventListener("click", function () {
+    if (runs.length && confirm("Clear all recorded runs?")) { runs = []; saveRuns(); renderRuns(); }
+  });
+
   newPlay();
   newAgent();
+  renderRuns();
 })();
 </script>
 </body>
